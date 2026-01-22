@@ -16,7 +16,7 @@ A full-stack AI chat application built on the Cloudflare Developer Platform. Thi
 * **State Management:** Durable Objects (SQLite backend)
 * **Frontend:** HTML/CSS/JavaScript (served via Worker Assets)
 
-## 📂 Project Structure
+##  Project Structure
 
 * `src/index.js`: Contains the Worker logic (API Gateway) and the Durable Object class (State & AI logic).
 * `public/index.html`: The client-side chat interface.
