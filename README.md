@@ -26,7 +26,7 @@ A full-stack AI chat application built on the Cloudflare Developer Platform. Thi
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/GabrielAnokye/AI-APP.git](https://github.com/GabrielAnokye/AI-APP.git)
+    git clone https://github.com/GabrielAnokye/AI-APP.git
     cd AI-APP
     ```
 
