@@ -1,68 +1,70 @@
 import { DurableObject } from "cloudflare:workers";
 
-/**
- * Welcome to Cloudflare Workers! This is your first Durable Objects application.
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your Durable Object in action
- * - Run `npm run deploy` to publish your application
- *
- * Learn more at https://developers.cloudflare.com/durable-objects
- */
-
-/**
- * Env provides a mechanism to reference bindings declared in wrangler.jsonc within JavaScript
- *
- * @typedef {Object} Env
- * @property {DurableObjectNamespace} MY_DURABLE_OBJECT - The Durable Object namespace binding
- */
-
-/** A Durable Object's behavior is defined in an exported Javascript class */
-export class MyDurableObject extends DurableObject {
-	/**
-	 * The constructor is invoked once upon creation of the Durable Object, i.e. the first call to
-	 * 	`DurableObjectStub::get` for a given identifier (no-op constructors can be omitted)
-	 *
-	 * @param {DurableObjectState} ctx - The interface for interacting with Durable Object state
-	 * @param {Env} env - The interface to reference bindings declared in wrangler.jsonc
-	 */
-	constructor(ctx, env) {
-		super(ctx, env);
-	}
-
-	/**
-	 * The Durable Object exposes an RPC method sayHello which will be invoked when a Durable
-	 *  Object instance receives a request from a Worker via the same method invocation on the stub
-	 *
-	 * @param {string} name - The name provided to a Durable Object instance from a Worker
-	 * @returns {Promise<string>} The greeting to be sent back to the Worker
-	 */
-	async sayHello(name) {
-		return `Hello, ${name}!`;
-	}
-}
-
 export default {
-	/**
-	 * This is the standard fetch handler for a Cloudflare Worker
-	 *
-	 * @param {Request} request - The request submitted to the Worker from the client
-	 * @param {Env} env - The interface to reference bindings declared in wrangler.jsonc
-	 * @param {ExecutionContext} ctx - The execution context of the Worker
-	 * @returns {Promise<Response>} The response to be sent back to the client
-	 */
-	async fetch(request, env, ctx) {
-		// Create a stub to open a communication channel with the Durable Object
-		// instance named "foo".
-		//
-		// Requests from all Workers to the Durable Object instance named "foo"
-		// will go to a single remote Durable Object instance.
-		const stub = env.MY_DURABLE_OBJECT.getByName("foo");
+  async fetch(request, env) {
+    try {
+      const url = new URL(request.url);
 
-		// Call the `sayHello()` RPC method on the stub to invoke the method on
-		// the remote Durable Object instance.
-		const greeting = await stub.sayHello("world");
+      if (url.pathname === "/api/chat" && request.method === "POST") {
+        
+        if (!env.CHAT_HISTORY) {
+          throw new Error("env.CHAT_HISTORY is undefined. Check wrangler.jsonc bindings.");
+        }
 
-		return new Response(greeting);
-	}
+        const id = env.CHAT_HISTORY.idFromName("global-session");
+        const stub = env.CHAT_HISTORY.get(id);
+        return await stub.fetch(request);
+      }
+
+      return new Response("Not Found", { status: 404 });
+
+    } catch (err) {
+      return new Response(JSON.stringify({ response: `SYSTEM ERROR: ${err.message}` }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+  },
 };
+
+export class ChatSession extends DurableObject {
+  constructor(state, env) {
+    super(state, env);
+    this.state = state;
+    this.env = env;
+  }
+
+  async fetch(request) {
+    try {
+      const { message } = await request.json();
+
+      if (!this.env.AI) {
+        throw new Error("env.AI is undefined. Check wrangler.jsonc bindings.");
+      }
+
+      let history = (await this.state.storage.get("history")) || [];
+
+      history.push({ role: "user", content: message });
+
+      const response = await this.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+        messages: [
+          { role: "system", content: "You are a helpful assistant." },
+          ...history,
+        ],
+      });
+
+      history.push({ role: "assistant", content: response.response });
+      await this.state.storage.put("history", history);
+
+      return new Response(JSON.stringify({ response: response.response }), {
+        headers: { "Content-Type": "application/json" },
+      });
+
+    } catch (err) {
+      return new Response(JSON.stringify({ response: `DO ERROR: ${err.message}` }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+  }
+}

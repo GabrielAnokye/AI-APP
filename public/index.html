@@ -1,20 +1,55 @@
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Hello, World!</title>
-		<p>This page comes from a static asset stored at `public/index.html` as configured in `wrangler.jsonc`.</p>
-	</head>
-	<body>
-		<h1 id="heading"></h1>
-		<script>
-			fetch('/message')
-				.then((resp) => resp.text())
-				.then((text) => {
-					const h1 = document.getElementById('heading');
-					h1.textContent = text;
-				});
-		</script>
-	</body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
+        #chat-box { border: 1px solid #ccc; height: 400px; overflow-y: scroll; padding: 1rem; margin-bottom: 1rem; border-radius: 8px; }
+        .message { margin-bottom: 0.5rem; padding: 0.5rem; border-radius: 4px; }
+        .user { background: #e0f7fa; text-align: right; margin-left: 20%; }
+        .ai { background: #f1f0f0; margin-right: 20%; }
+        #input-area { display: flex; gap: 0.5rem; }
+        input { flex-grow: 1; padding: 0.5rem; }
+        button { padding: 0.5rem 1rem; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h2>Cloudflare Llama 3.3 Chat</h2>
+    <div id="chat-box"></div>
+    <div id="input-area">
+        <input type="text" id="user-input" placeholder="Type a message..." />
+        <button onclick="sendMessage()">Send</button>
+    </div>
+
+    <script>
+        async function sendMessage() {
+            const input = document.getElementById("user-input");
+            const chatBox = document.getElementById("chat-box");
+            const text = input.value;
+            if (!text) return;
+
+            // Show user message
+            chatBox.innerHTML += `<div class="message user"><strong>You:</strong> ${text}</div>`;
+            input.value = "";
+
+            try {
+                // Fetch directly from relative path
+                const res = await fetch("/api/chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: text })
+                });
+                const data = await res.json();
+                
+                // Show AI response
+                chatBox.innerHTML += `<div class="message ai"><strong>AI:</strong> ${data.response}</div>`;
+                chatBox.scrollTop = chatBox.scrollHeight;
+            } catch (err) {
+                chatBox.innerHTML += `<div class="message ai" style="color:red">Error: ${err.message}</div>`;
+            }
+        }
+    </script>
+</body>
 </html>
